@@ -265,6 +265,26 @@ label[for="file-upload"]:hover {
 	margin-top: 0.25rem;
 }
 
+#open-unlocked .form-group {
+	margin-top: 1.5rem;
+}
+
+#decrypted-files {
+	margin-top: 1.5rem;
+	text-align: left;
+}
+
+.decrypted-file {
+	padding: 0.5rem;
+	margin: 0.5rem 0;
+	background-color: var(--light-color);
+	border-radius: var(--border-radius);
+}
+
+.download-decrypted {
+	margin-left: 1rem;
+}
+
 footer {
 	text-align: center;
 	color: #7f8c8d;
