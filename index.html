@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChronoVault - Digital Time Capsules</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <link rel="icon" href="site-data/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" sizes="180x180" href="site-data/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="site-data/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="site-data/favicon-16x16.png">
+    <link rel="manifest" href="site-data/site.webmanifest">
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>
+          <i class="fas fa-vault"></i> ChronoVault
+        </h1>
+        <p>Create digital time capsules that unlock at a specific moment in the future</p>
+      </header>
+      <div class="tab-container">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="create">Create Capsule</button>
+          <button class="tab-btn" data-tab="check">Check Capsule</button>
+        </div>
+        <div class="tab-content active" id="create-tab">
+          <div class="create-container">
+            <div class="form-group">
+              <label for="file-upload">
+                <i class="fas fa-file-upload"></i> Select Files to Seal </label>
+              <input type="file" id="file-upload" multiple>
+              <div id="file-list" class="file-list"></div>
+            </div>
+            <div class="form-group">
+              <label for="unlock-date">Set Unlock Date and Time</label>
+              <input type="datetime-local" id="unlock-date">
+            </div>
+            <div class="form-group">
+              <label for="password">Set 12-Digit Password</label>
+              <input type="text" id="password" placeholder="Enter a 12-digit password" maxlength="12" pattern="[0-9]{12}">
+              <p class="hint">This password will be required to open your capsule when the time comes</p>
+            </div>
+            <button id="create-capsule" class="btn primary">
+              <i class="fas fa-lock"></i> Seal Time Capsule </button>
+            <div id="capsule-result" class="result-container hidden">
+              <h3>Your Time Capsule is Ready</h3>
+              <p>Your capsule ID: <span id="capsule-id"></span>
+              </p>
+              <p>Save this ID to access your capsule in the future and also make sure to not rename the capsule just in case you forget the ID</p>
+              <a id="download-link" class="btn secondary">
+                <i class="fas fa-download"></i> Download Capsule </a>
+            </div>
+          </div>
+        </div>
+        <div class="tab-content" id="check-tab">
+          <div class="check-container">
+            <div class="form-group">
+              <label for="check-id">Enter Capsule ID</label>
+              <input type="text" id="check-id" placeholder="Enter your capsule ID">
+            </div>
+            <button id="check-capsule" class="btn primary">
+              <i class="fas fa-hourglass-half"></i> Check Status </button>
+            <div id="check-result" class="result-container hidden">
+              <div id="locked-message">
+                <h3>Your Capsule is Locked</h3>
+                <p>Time remaining until your capsule unlocks:</p>
+                <div class="countdown">
+                  <div class="countdown-item">
+                    <span id="days">00</span>
+                    <span class="label">Days</span>
+                  </div>
+                  <div class="countdown-item">
+                    <span id="hours">00</span>
+                    <span class="label">Hours</span>
+                  </div>
+                  <div class="countdown-item">
+                    <span id="minutes">00</span>
+                    <span class="label">Minutes</span>
+                  </div>
+                  <div class="countdown-item">
+                    <span id="seconds">00</span>
+                    <span class="label">Seconds</span>
+                  </div>
+                </div>
+                <p>Unlock Date: <span id="unlock-date-display"></span>
+                </p>
+              </div>
+              <div id="unlocked-message" class="hidden">
+                <h3>Your Capsule is Ready to Open!</h3>
+                <p>Enter your 12-digit password to access your capsule:</p>
+                <div class="form-group">
+                  <input type="text" id="unlock-password" placeholder="Enter your 12-digit password" maxlength="12" pattern="[0-9]{12}">
+                  <button id="unlock-capsule" class="btn secondary">
+                    <i class="fas fa-unlock"></i> Unlock Capsule </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <footer>
+        <p>&copy; 2025 ChronoVault | <a href="https://github.com/yourusername/chronovault" target="_blank">GitHub</a>
+        </p>
+      </footer>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>
