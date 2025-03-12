@@ -6,69 +6,54 @@ document.addEventListener('DOMContentLoaded', () => {
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const tabName = btn.getAttribute('data-tab');
-
-            // Remove active class from all tabs
-            tabBtns.forEach(btn => btn.classList.remove('active'));
-            tabContents.forEach(content => content.classList.remove('active'));
-
-            // Add active class to current tab
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
             btn.classList.add('active');
             document.getElementById(`${tabName}-tab`).classList.add('active');
         });
     });
 
-    // File upload handling
+    // File upload handling (Create Tab)
     const fileUpload = document.getElementById('file-upload');
     const fileList = document.getElementById('file-list');
     let uploadedFiles = [];
 
     fileUpload.addEventListener('change', (e) => {
-        const newFiles = Array.from(e.target.files);
-        uploadedFiles = [...uploadedFiles, ...newFiles];
+        uploadedFiles = [...uploadedFiles, ...Array.from(e.target.files)];
         displayFileList();
     });
 
     function displayFileList() {
         fileList.innerHTML = '';
-
         uploadedFiles.forEach((file, index) => {
             const fileItem = document.createElement('div');
             fileItem.className = 'file-item';
+            fileItem.innerHTML = `
+                <div class="file-name">${file.name}</div>
+                <div class="file-size">${formatFileSize(file.size)}</div>
+                <button class="remove-file" data-index="${index}">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            fileList.appendChild(fileItem);
+        });
 
-            const fileName = document.createElement('div');
-            fileName.className = 'file-name';
-            fileName.textContent = file.name;
-
-            const fileSize = document.createElement('div');
-            fileSize.className = 'file-size';
-            fileSize.textContent = formatFileSize(file.size);
-
-            const removeBtn = document.createElement('button');
-            removeBtn.className = 'remove-file';
-            removeBtn.innerHTML = '<i class="fas fa-times"></i>';
-            removeBtn.addEventListener('click', () => {
-                uploadedFiles.splice(index, 1);
+        document.querySelectorAll('.remove-file').forEach(btn => {
+            btn.addEventListener('click', () => {
+                uploadedFiles.splice(btn.dataset.index, 1);
                 displayFileList();
             });
-
-            fileItem.appendChild(fileName);
-            fileItem.appendChild(fileSize);
-            fileItem.appendChild(removeBtn);
-            fileList.appendChild(fileItem);
         });
     }
 
     function formatFileSize(bytes) {
+        const units = ['Bytes', 'KB', 'MB', 'GB'];
         if (bytes === 0) return '0 Bytes';
-
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        const exp = Math.floor(Math.log(bytes) / Math.log(1024));
+        return `${(bytes / Math.pow(1024, exp)).toFixed(2)} ${units[exp]}`;
     }
 
-    // Create capsule functionality
+    // Create Capsule Functionality
     const createCapsuleBtn = document.getElementById('create-capsule');
     const passwordInput = document.getElementById('password');
     const unlockDateInput = document.getElementById('unlock-date');
@@ -77,226 +62,302 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadLink = document.getElementById('download-link');
 
     createCapsuleBtn.addEventListener('click', async () => {
-        // Validate inputs
-        if (uploadedFiles.length === 0) {
-            alert('Please select at least one file to include in your time capsule.');
-            return;
-        }
-
-        if (!unlockDateInput.value) {
-            alert('Please set an unlock date for your time capsule.');
-            return;
-        }
-
-        const unlockDate = new Date(unlockDateInput.value);
-        if (unlockDate <= new Date()) {
-            alert('The unlock date must be in the future.');
-            return;
-        }
-
-        const password = passwordInput.value;
-        if (!/^\d{12}$/.test(password)) {
-            alert('Please enter a valid 12-digit password.');
-            return;
-        }
+        if (!validateCreateInputs()) return;
 
         try {
-            // Create zip file with password protection
             const zip = new JSZip();
+            const password = passwordInput.value;
+            const unlockDate = new Date(unlockDateInput.value);
 
-            // Encrypt each file before adding to the zip
+            // Encrypt files
             for (const file of uploadedFiles) {
-                // Read the file content
                 const arrayBuffer = await file.arrayBuffer();
-                const fileContent = new Uint8Array(arrayBuffer);
-
-                // Encrypt file content using CryptoJS
-                const wordArray = CryptoJS.lib.WordArray.create(fileContent);
+                const wordArray = CryptoJS.lib.WordArray.create(arrayBuffer);
                 const encrypted = CryptoJS.AES.encrypt(wordArray, password).toString();
-
-                // Store the encrypted content
-                zip.file(file.name + '.encrypted', encrypted);
+                zip.file(`${file.name}.encrypted`, encrypted);
             }
 
-            // Add unlock date metadata
+            // Add metadata
             const metadata = {
                 unlockDate: unlockDate.toISOString(),
                 creationDate: new Date().toISOString(),
-                filesCount: uploadedFiles.length,
                 filesList: uploadedFiles.map(file => ({
                     name: file.name,
                     size: file.size,
                     type: file.type
                 }))
             };
-
-            // Encrypt the metadata as well for additional security
-            const encryptedMetadata = CryptoJS.AES.encrypt(
-                JSON.stringify(metadata),
-                password
-            ).toString();
-
+            const encryptedMetadata = CryptoJS.AES.encrypt(JSON.stringify(metadata), password).toString();
             zip.file('metadata.json.encrypted', encryptedMetadata);
 
-            // Generate the zip content
-            const zipContent = await zip.generateAsync({
+            // Generate capsule ID
+            const capsuleId = CryptoJS.SHA256(password + unlockDate.toISOString()).toString().substr(0, 16);
+            const zipBlob = await zip.generateAsync({
                 type: 'blob',
-                compression: 'DEFLATE',
-                compressionOptions: {
-                    level: 9
-                }
+                compression: 'DEFLATE'
             });
 
-            // Generate a hash from password and unlock date for the capsule ID
-            const dateString = unlockDate.toISOString();
-            const hashInput = password + dateString;
-            const capsuleId = CryptoJS.SHA256(hashInput).toString().substring(0, 16);
-
-            // Create download link
-            const downloadUrl = URL.createObjectURL(zipContent);
-            downloadLink.href = downloadUrl;
-            downloadLink.download = `chronovault-${capsuleId}.zip`;
-
-            // Store metadata in localStorage for the check function
-            // In a real app, this would be stored in a database on the server
-            const storedCapsules = JSON.parse(localStorage.getItem('chronovault-capsules') || '{}');
-            storedCapsules[capsuleId] = {
-                unlockDate: unlockDate.toISOString(),
-                password: password, // In a real app, never store passwords in clear text
-                filesList: uploadedFiles.map(file => file.name)
-            };
-            localStorage.setItem('chronovault-capsules', JSON.stringify(storedCapsules));
-
-            // Show result
-            capsuleIdSpan.textContent = capsuleId;
-            capsuleResult.classList.remove('hidden');
+            // Update UI and storage
+            updateCreateUI(zipBlob, capsuleId);
+            storeCapsuleData(capsuleId, unlockDate, password);
         } catch (error) {
-            console.error('Error creating capsule:', error);
-            alert('An error occurred while creating your time capsule. Please try again.');
+            handleCreateError(error);
         }
     });
 
-    // Check capsule functionality
+    function validateCreateInputs() {
+        if (uploadedFiles.length === 0) {
+            alert('Please select at least one file.');
+            return false;
+        }
+        if (!unlockDateInput.value || new Date(unlockDateInput.value) <= new Date()) {
+            alert('Please select a future unlock date.');
+            return false;
+        }
+        if (!/^\d{12}$/.test(passwordInput.value)) {
+            alert('Please enter a valid 12-digit password.');
+            return false;
+        }
+        return true;
+    }
+
+    function updateCreateUI(zipBlob, capsuleId) {
+        downloadLink.href = URL.createObjectURL(zipBlob);
+        downloadLink.download = `chronovault-${capsuleId}.zip`;
+        capsuleIdSpan.textContent = capsuleId;
+        capsuleResult.classList.remove('hidden');
+    }
+
+    function storeCapsuleData(capsuleId, unlockDate, password) {
+        const storedCapsules = JSON.parse(localStorage.getItem('chronovault-capsules') || '{}');
+        storedCapsules[capsuleId] = {
+            unlockDate: unlockDate.toISOString(),
+            password: password,
+            filesList: uploadedFiles.map(f => f.name)
+        };
+        localStorage.setItem('chronovault-capsules', JSON.stringify(storedCapsules));
+    }
+
+    function handleCreateError(error) {
+        console.error('Creation error:', error);
+        alert('Error creating capsule. Please try again.');
+    }
+
+    // Check Capsule Functionality
     const checkCapsuleBtn = document.getElementById('check-capsule');
     const checkIdInput = document.getElementById('check-id');
     const checkResult = document.getElementById('check-result');
     const lockedMessage = document.getElementById('locked-message');
     const unlockedMessage = document.getElementById('unlocked-message');
     const unlockDateDisplay = document.getElementById('unlock-date-display');
-
-    // Countdown elements
-    const daysElement = document.getElementById('days');
-    const hoursElement = document.getElementById('hours');
-    const minutesElement = document.getElementById('minutes');
-    const secondsElement = document.getElementById('seconds');
-
-    // Unlock functionality
-    const unlockPasswordInput = document.getElementById('unlock-password');
-    const unlockCapsuleBtn = document.getElementById('unlock-capsule');
-
+    const countdownElements = {
+        days: document.getElementById('days'),
+        hours: document.getElementById('hours'),
+        minutes: document.getElementById('minutes'),
+        seconds: document.getElementById('seconds')
+    };
     let countdownInterval = null;
-    let currentCapsuleId = '';
 
     checkCapsuleBtn.addEventListener('click', () => {
         const capsuleId = checkIdInput.value.trim();
-        if (!capsuleId) {
-            alert('Please enter a capsule ID.');
-            return;
-        }
+        if (!capsuleId) return alert('Please enter a capsule ID.');
 
-        // Get capsule data from localStorage
-        const storedCapsules = JSON.parse(localStorage.getItem('chronovault-capsules') || '{}');
-        const capsuleData = storedCapsules[capsuleId];
+        const capsuleData = getCapsuleData(capsuleId);
+        if (!capsuleData) return alert('Capsule not found.');
 
-        if (!capsuleData) {
-            alert('Capsule not found. Please check the ID and try again.');
-            return;
-        }
-
-        // Store current capsule ID for unlock functionality
-        currentCapsuleId = capsuleId;
-
-        // Get unlock date
         const unlockDate = new Date(capsuleData.unlockDate);
-        const now = new Date();
-
-        // Format unlock date for display
-        const options = {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            timeZoneName: 'short'
-        };
-        unlockDateDisplay.textContent = unlockDate.toLocaleDateString(undefined, options);
-
-        // Check if the capsule is unlocked
-        if (unlockDate <= now) {
-            // Capsule is unlocked
-            lockedMessage.classList.add('hidden');
-            unlockedMessage.classList.remove('hidden');
-        } else {
-            // Capsule is still locked, show countdown
-            lockedMessage.classList.remove('hidden');
-            unlockedMessage.classList.add('hidden');
-
-            // Clear previous countdown if exists
-            if (countdownInterval) {
-                clearInterval(countdownInterval);
-            }
-
-            // Start countdown
-            updateCountdown(unlockDate);
-            countdownInterval = setInterval(() => updateCountdown(unlockDate), 1000);
-        }
-
-        checkResult.classList.remove('hidden');
+        updateCheckUI(unlockDate, capsuleId);
     });
+
+    function getCapsuleData(capsuleId) {
+        const storedCapsules = JSON.parse(localStorage.getItem('chronovault-capsules') || '{}');
+        return storedCapsules[capsuleId];
+    }
+
+    function updateCheckUI(unlockDate, capsuleId) {
+        const now = new Date();
+        unlockDateDisplay.textContent = unlockDate.toLocaleString();
+
+        if (unlockDate <= now) {
+            showUnlockedMessage(capsuleId);
+        } else {
+            showCountdown(unlockDate);
+        }
+        checkResult.classList.remove('hidden');
+    }
+
+    function showUnlockedMessage(capsuleId) {
+        lockedMessage.classList.add('hidden');
+        unlockedMessage.innerHTML = `
+            <h3>Capsule Ready!</h3>
+            <p>Switch to the <b>Open Capsule</b> tab to unlock</p>
+            <button class="btn primary" onclick="switchTab('open')">
+                Open Capsule
+            </button>
+        `;
+        unlockedMessage.classList.remove('hidden');
+    }
+
+    function showCountdown(targetDate) {
+        lockedMessage.classList.remove('hidden');
+        unlockedMessage.classList.add('hidden');
+        updateCountdown(targetDate);
+        countdownInterval = setInterval(() => updateCountdown(targetDate), 1000);
+    }
 
     function updateCountdown(targetDate) {
         const now = new Date();
-        const timeDifference = targetDate - now;
+        const diff = targetDate - now;
 
-        if (timeDifference <= 0) {
-            // Countdown finished
+        if (diff <= 0) {
             clearInterval(countdownInterval);
-            lockedMessage.classList.add('hidden');
-            unlockedMessage.classList.remove('hidden');
+            showUnlockedMessage();
             return;
         }
 
-        // Calculate time components
-        const days = Math.floor(timeDifference / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((timeDifference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((timeDifference % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((timeDifference % (1000 * 60)) / 1000);
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
-        // Update DOM
-        daysElement.textContent = days.toString().padStart(2, '0');
-        hoursElement.textContent = hours.toString().padStart(2, '0');
-        minutesElement.textContent = minutes.toString().padStart(2, '0');
-        secondsElement.textContent = seconds.toString().padStart(2, '0');
+        countdownElements.days.textContent = days.toString().padStart(2, '0');
+        countdownElements.hours.textContent = hours.toString().padStart(2, '0');
+        countdownElements.minutes.textContent = minutes.toString().padStart(2, '0');
+        countdownElements.seconds.textContent = seconds.toString().padStart(2, '0');
     }
 
-    unlockCapsuleBtn.addEventListener('click', () => {
-        const enteredPassword = unlockPasswordInput.value.trim();
-        if (!/^\d{12}$/.test(enteredPassword)) {
-            alert('Please enter a valid 12-digit password.');
-            return;
-        }
+    // Open Capsule Functionality
+    const capsuleUpload = document.getElementById('capsule-upload');
+    const manualCapsuleIdInput = document.getElementById('manual-capsule-id');
+    const openStatus = document.getElementById('open-status');
+    const openLocked = document.getElementById('open-locked');
+    const openUnlocked = document.getElementById('open-unlocked');
+    const decryptBtn = document.getElementById('decrypt-capsule');
+    const openPasswordInput = document.getElementById('open-password');
+    const decryptedFilesDiv = document.getElementById('decrypted-files');
+    let currentZip = null;
+    let currentCapsuleData = null;
 
-        // Get capsule data from localStorage
-        const storedCapsules = JSON.parse(localStorage.getItem('chronovault-capsules') || '{}');
-        const capsuleData = storedCapsules[currentCapsuleId];
+    capsuleUpload.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
 
-        if (enteredPassword === capsuleData.password) {
-            // Password is correct - in a real implementation, we would offer to decrypt
-            // and download the files here
-            alert(`Password correct! Your time capsule with ${capsuleData.filesList.length} files is now ready to be accessed. In a full implementation, the files would be decrypted and available for download.`);
-        } else {
-            alert('Incorrect password. Please try again.');
+        let capsuleId = extractCapsuleId(file.name) || manualCapsuleIdInput.value.trim();
+        if (!capsuleId) return alert('Please enter capsule ID.');
+
+        currentCapsuleData = getCapsuleData(capsuleId);
+        if (!currentCapsuleData) return alert('Capsule not found.');
+
+        try {
+            currentZip = await JSZip.loadAsync(file);
+            handleUnlockStatus(new Date(currentCapsuleData.unlockDate));
+            switchTab('open');
+        } catch (error) {
+            alert('Invalid capsule file.');
         }
     });
+
+    function extractCapsuleId(filename) {
+        const match = filename.match(/chronovault-([a-f0-9]{16})\.zip/i);
+        return match ? match[1] : null;
+    }
+
+    function handleUnlockStatus(unlockDate) {
+        const now = new Date();
+        openStatus.classList.remove('hidden');
+
+        if (unlockDate > now) {
+            openLocked.classList.remove('hidden');
+            openUnlocked.classList.add('hidden');
+            startOpenCountdown(unlockDate);
+        } else {
+            openLocked.classList.add('hidden');
+            openUnlocked.classList.remove('hidden');
+        }
+    }
+
+    function startOpenCountdown(targetDate) {
+        updateOpenCountdown(targetDate);
+        const interval = setInterval(() => {
+            if (updateOpenCountdown(targetDate)) {
+                clearInterval(interval);
+            }
+        }, 1000);
+    }
+
+    function updateOpenCountdown(targetDate) {
+        const now = new Date();
+        const diff = targetDate - now;
+
+        if (diff <= 0) {
+            handleUnlockStatus(targetDate);
+            return true;
+        }
+
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        openLocked.querySelector('#days').textContent = days.toString().padStart(2, '0');
+        openLocked.querySelector('#hours').textContent = hours.toString().padStart(2, '0');
+        openLocked.querySelector('#minutes').textContent = minutes.toString().padStart(2, '0');
+        openLocked.querySelector('#seconds').textContent = seconds.toString().padStart(2, '0');
+        return false;
+    }
+
+    decryptBtn.addEventListener('click', async () => {
+        const password = openPasswordInput.value;
+        if (!/^\d{12}$/.test(password)) return alert('Invalid password format.');
+
+        try {
+            const metadata = await decryptMetadata(password);
+            await decryptFiles(metadata.filesList, password);
+            decryptedFilesDiv.classList.remove('hidden');
+        } catch (error) {
+            alert(error.message);
+        }
+    });
+
+    async function decryptMetadata(password) {
+        const encryptedMetadata = await currentZip.file('metadata.json.encrypted').async('string');
+        const decrypted = CryptoJS.AES.decrypt(encryptedMetadata, password);
+        try {
+            return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8));
+        } catch {
+            throw new Error('Invalid password or corrupted metadata');
+        }
+    }
+
+    async function decryptFiles(filesList, password) {
+        decryptedFilesDiv.innerHTML = '';
+
+        for (const fileInfo of filesList) {
+            const encryptedFile = currentZip.file(`${fileInfo.name}.encrypted`);
+            if (!encryptedFile) continue;
+
+            const encryptedContent = await encryptedFile.async('string');
+            const decrypted = CryptoJS.AES.decrypt(encryptedContent, password);
+            const blob = new Blob([decrypted.toString(CryptoJS.enc.Latin1)], {
+                type: fileInfo.type
+            });
+
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'decrypted-file';
+            fileDiv.innerHTML = `
+                ${fileInfo.name} (${formatFileSize(fileInfo.size)})
+                <a class="btn secondary download-decrypted"
+                   href="${URL.createObjectURL(blob)}"
+                   download="${fileInfo.name}">
+                    <i class="fas fa-download"></i> Download
+                </a>
+            `;
+            decryptedFilesDiv.appendChild(fileDiv);
+        }
+    }
+
+    // Utility function
+    window.switchTab = (tabName) => {
+        document.querySelector(`.tab-btn[data-tab="${tabName}"]`).click();
+    };
 });
