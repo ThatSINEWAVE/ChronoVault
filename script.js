@@ -143,183 +143,261 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Error creating capsule. Please try again.');
     }
 
-    // Check Capsule Functionality
+    // Reset button functionality
+    function addResetButtons() {
+        // Create reset button for Create tab
+        const createResetBtn = document.createElement('button');
+        createResetBtn.innerHTML = '<i class="fas fa-redo"></i> Reset';
+        createResetBtn.className = 'btn secondary reset-btn';
+        createResetBtn.addEventListener('click', resetCreateTab);
+        document.querySelector('#create-tab .create-container').appendChild(createResetBtn);
+
+        // Create reset button for Access tab
+        const accessResetBtn = document.createElement('button');
+        accessResetBtn.innerHTML = '<i class="fas fa-redo"></i> Reset';
+        accessResetBtn.className = 'btn secondary reset-btn';
+        accessResetBtn.addEventListener('click', resetAccessTab);
+        document.querySelector('#access-tab .access-container').appendChild(accessResetBtn);
+    }
+
+    function resetCreateTab() {
+        uploadedFiles = [];
+        fileList.innerHTML = '';
+        passwordInput.value = '';
+        unlockDateInput.value = '';
+        capsuleResult.classList.add('hidden');
+    }
+
+    function resetAccessTab() {
+        document.getElementById('capsule-upload').value = '';
+        document.getElementById('capsule-id-input').value = '';
+        document.getElementById('access-status').classList.add('hidden');
+        currentZip = null;
+        currentCapsuleData = null;
+        currentCapsuleId = null;
+
+        // Clear any ongoing countdown
+        if (currentCountdownInterval) {
+            clearInterval(currentCountdownInterval);
+            currentCountdownInterval = null;
+        }
+    }
+
+    // Combined Access Capsule functionality
+    const capsuleUpload = document.getElementById('capsule-upload');
+    const capsuleIdInput = document.getElementById('capsule-id-input');
     const checkCapsuleBtn = document.getElementById('check-capsule');
-    const checkIdInput = document.getElementById('check-id');
-    const checkResult = document.getElementById('check-result');
-    const lockedMessage = document.getElementById('locked-message');
-    const unlockedMessage = document.getElementById('unlocked-message');
-    const unlockDateDisplay = document.getElementById('unlock-date-display');
-    const countdownElements = {
-        days: document.getElementById('days'),
-        hours: document.getElementById('hours'),
-        minutes: document.getElementById('minutes'),
-        seconds: document.getElementById('seconds')
-    };
-    let countdownInterval = null;
+    const accessStatus = document.getElementById('access-status');
+    let currentZip = null;
+    let currentCapsuleData = null;
+    let currentCapsuleId = null;
+    let currentCountdownInterval = null;
 
-    checkCapsuleBtn.addEventListener('click', () => {
-        const capsuleId = checkIdInput.value.trim();
-        if (!capsuleId) return alert('Please enter a capsule ID.');
+    // Handle both file upload and ID input
+    checkCapsuleBtn.addEventListener('click', async () => {
+        const file = capsuleUpload.files[0];
+        const capsuleId = extractCapsuleId(file?.name) || capsuleIdInput.value.trim();
+        currentCapsuleId = capsuleId;
 
-        const capsuleData = getCapsuleData(capsuleId);
-        if (!capsuleData) return alert('Capsule not found.');
+        if (!capsuleId && !file) return alert('Please provide a capsule ID or upload file');
 
-        const unlockDate = new Date(capsuleData.unlockDate);
-        updateCheckUI(unlockDate, capsuleId);
+        try {
+            if (file) {
+                currentZip = await JSZip.loadAsync(file);
+                currentCapsuleData = getCapsuleData(capsuleId);
+
+                if (currentCapsuleData) {
+                    const unlockDate = new Date(currentCapsuleData.unlockDate);
+                    handleAccessStatus(unlockDate, capsuleId, true);
+                } else {
+                    // Try to extract metadata directly from the file to get unlock date
+                    try {
+                        const metadata = await extractMetadataFromZip(currentZip);
+                        handleAccessStatus(new Date(metadata.unlockDate), capsuleId, true);
+                    } catch (e) {
+                        throw new Error('Could not access capsule data. Password needed.');
+                    }
+                }
+            } else {
+                // Only have ID, no file
+                currentCapsuleData = getCapsuleData(capsuleId);
+                if (!currentCapsuleData) throw new Error('Capsule not found');
+
+                const unlockDate = new Date(currentCapsuleData.unlockDate);
+                handleAccessStatus(unlockDate, capsuleId, false);
+            }
+
+            accessStatus.classList.remove('hidden');
+        } catch (error) {
+            alert(error.message || 'Error accessing capsule');
+        }
     });
+
+    async function extractMetadataFromZip(zip) {
+        // This is a fallback when we don't have the data in localStorage
+        // We'll need to try all possible files and see if we can find the metadata
+        const files = Object.keys(zip.files);
+        const metadataFile = files.find(f => f === 'metadata.json.encrypted');
+
+        if (!metadataFile) {
+            throw new Error('Invalid capsule format: metadata not found');
+        }
+
+        // We found metadata but we can't decrypt it without password
+        throw new Error('Password required to access capsule data');
+    }
+
+    function handleAccessStatus(unlockDate, capsuleId, hasFile) {
+        const now = new Date();
+        document.getElementById('unlock-date-display').textContent = unlockDate.toLocaleString();
+
+        if (unlockDate <= now) {
+            if (hasFile) {
+                // If we have the file and time is up, show auto decrypt UI
+                showAutoDecryptUI();
+            } else {
+                // If we only have ID and time is up, ask for file upload
+                showUploadPrompt();
+            }
+        } else {
+            showCountdown(unlockDate);
+        }
+    }
+
+    function showAutoDecryptUI() {
+        document.getElementById('locked-message').classList.add('hidden');
+
+        const decryptUI = document.getElementById('unlocked-interface');
+        decryptUI.classList.remove('hidden');
+
+        // Modify the UI to show auto-decrypt option instead of password
+        decryptUI.innerHTML = `
+            <div id="decryption-ui">
+                <h3>Capsule Ready to Open!</h3>
+                <p>This time capsule's unlock date has passed and it's ready to be opened.</p>
+                <button id="auto-decrypt-capsule" class="btn primary">
+                    <i class="fas fa-unlock"></i> Open Capsule
+                </button>
+            </div>
+            <div id="decrypted-files" class="hidden"></div>
+        `;
+
+        // Add event listener to the new button
+        document.getElementById('auto-decrypt-capsule').addEventListener('click', async () => {
+            await autoDecryptCapsule();
+        });
+    }
+
+    function showUploadPrompt() {
+        document.getElementById('locked-message').classList.add('hidden');
+
+        const decryptUI = document.getElementById('unlocked-interface');
+        decryptUI.classList.remove('hidden');
+
+        // Show message asking user to upload the capsule
+        decryptUI.innerHTML = `
+            <div id="decryption-ui">
+                <h3>Capsule Ready to Open!</h3>
+                <p>This time capsule's unlock date has passed and it's ready to be opened.</p>
+                <p>Please upload the capsule file to decrypt it:</p>
+                <div class="form-group">
+                    <label for="ready-capsule-upload">
+                        <i class="fas fa-file-archive"></i> Upload Capsule
+                    </label>
+                    <input type="file" id="ready-capsule-upload" accept=".zip">
+                </div>
+                <button id="process-uploaded-capsule" class="btn primary">
+                    <i class="fas fa-unlock"></i> Process Capsule
+                </button>
+            </div>
+            <div id="decrypted-files" class="hidden"></div>
+        `;
+
+        // Add event listener for the new upload button
+        document.getElementById('process-uploaded-capsule').addEventListener('click', async () => {
+            const fileInput = document.getElementById('ready-capsule-upload');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                return alert('Please upload the capsule file');
+            }
+
+            try {
+                currentZip = await JSZip.loadAsync(file);
+                await autoDecryptCapsule();
+            } catch (error) {
+                alert(`Error processing capsule: ${error.message}`);
+            }
+        });
+    }
+
+    function showCountdown(targetDate) {
+        document.getElementById('locked-message').classList.remove('hidden');
+        document.getElementById('unlocked-interface').classList.add('hidden');
+        updateCountdown(targetDate);
+
+        // Clear any existing countdown
+        if (currentCountdownInterval) {
+            clearInterval(currentCountdownInterval);
+        }
+
+        currentCountdownInterval = setInterval(() => {
+            if (updateCountdown(targetDate)) {
+                clearInterval(currentCountdownInterval);
+                currentCountdownInterval = null;
+                // Auto refresh the view when countdown completes
+                checkCapsuleBtn.click();
+            }
+        }, 1000);
+    }
+
+    function updateCountdown(targetDate) {
+        const now = new Date();
+        const diff = targetDate - now;
+        if (diff <= 0) return true;
+
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        document.getElementById('days').textContent = days.toString().padStart(2, '0');
+        document.getElementById('hours').textContent = hours.toString().padStart(2, '0');
+        document.getElementById('minutes').textContent = minutes.toString().padStart(2, '0');
+        document.getElementById('seconds').textContent = seconds.toString().padStart(2, '0');
+        return false;
+    }
+
+    // Auto-decryption functionality
+    async function autoDecryptCapsule() {
+        try {
+            if (!currentCapsuleData && !currentZip) {
+                throw new Error('No capsule data or file available');
+            }
+
+            // Use the stored password if available
+            const password = currentCapsuleData ? currentCapsuleData.password : null;
+
+            if (!password) {
+                throw new Error('Cannot auto-decrypt without stored password');
+            }
+
+            const metadata = await decryptMetadata(password);
+            await decryptFiles(metadata.filesList, password);
+            document.getElementById('decrypted-files').classList.remove('hidden');
+        } catch (error) {
+            alert(`Decryption failed: ${error.message}`);
+        }
+    }
 
     function getCapsuleData(capsuleId) {
         const storedCapsules = JSON.parse(localStorage.getItem('chronovault-capsules') || '{}');
         return storedCapsules[capsuleId];
     }
 
-    function updateCheckUI(unlockDate, capsuleId) {
-        const now = new Date();
-        unlockDateDisplay.textContent = unlockDate.toLocaleString();
-
-        if (unlockDate <= now) {
-            showUnlockedMessage(capsuleId);
-        } else {
-            showCountdown(unlockDate);
-        }
-        checkResult.classList.remove('hidden');
-    }
-
-    function showUnlockedMessage(capsuleId) {
-        lockedMessage.classList.add('hidden');
-        unlockedMessage.innerHTML = `
-            <h3>Capsule Ready!</h3>
-            <p>To open your capsule, please upload it in the Open Capsule tab.</p>
-            <button class="btn primary" onclick="switchTab('open')">
-                Go to Open Capsule Tab
-            </button>
-        `;
-        unlockedMessage.classList.remove('hidden');
-    }
-
-    function showCountdown(targetDate) {
-        lockedMessage.classList.remove('hidden');
-        unlockedMessage.classList.add('hidden');
-        updateCountdown(targetDate);
-        countdownInterval = setInterval(() => updateCountdown(targetDate), 1000);
-    }
-
-    function updateCountdown(targetDate) {
-        const now = new Date();
-        const diff = targetDate - now;
-
-        if (diff <= 0) {
-            clearInterval(countdownInterval);
-            showUnlockedMessage();
-            return;
-        }
-
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-        countdownElements.days.textContent = days.toString().padStart(2, '0');
-        countdownElements.hours.textContent = hours.toString().padStart(2, '0');
-        countdownElements.minutes.textContent = minutes.toString().padStart(2, '0');
-        countdownElements.seconds.textContent = seconds.toString().padStart(2, '0');
-    }
-
-    // Open Capsule Functionality
-    const capsuleUpload = document.getElementById('capsule-upload');
-    const manualCapsuleIdInput = document.getElementById('manual-capsule-id');
-    const openStatus = document.getElementById('open-status');
-    const openLocked = document.getElementById('open-locked');
-    const openUnlocked = document.getElementById('open-unlocked');
-    let currentZip = null;
-    let currentCapsuleData = null;
-
-    capsuleUpload.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        let capsuleId = extractCapsuleId(file.name) || manualCapsuleIdInput.value.trim();
-        if (!capsuleId) return alert('Please enter capsule ID.');
-
-        currentCapsuleData = getCapsuleData(capsuleId);
-        if (!currentCapsuleData) return alert('Capsule not found.');
-
-        try {
-            currentZip = await JSZip.loadAsync(file);
-            handleUnlockStatus(new Date(currentCapsuleData.unlockDate), capsuleId);
-            switchTab('open');
-        } catch (error) {
-            alert('Invalid capsule file.');
-        }
-    });
-
     function extractCapsuleId(filename) {
-        const match = filename.match(/chronovault-([a-f0-9]{16})\.zip/i);
+        const match = filename?.match(/chronovault-([a-f0-9]{16})\.zip/i);
         return match ? match[1] : null;
-    }
-
-    function handleUnlockStatus(unlockDate, capsuleId) {
-        const now = new Date();
-        openStatus.classList.remove('hidden');
-
-        if (unlockDate > now) {
-            openLocked.classList.remove('hidden');
-            openUnlocked.classList.add('hidden');
-            startOpenCountdown(unlockDate);
-        } else {
-            openLocked.classList.add('hidden');
-            openUnlocked.classList.remove('hidden');
-
-            openUnlocked.innerHTML = `
-                <h3>Capsule Ready to Open!</h3>
-                <p>Your capsule is now ready to be decrypted. Click the button below to access your files.</p>
-                <button id="auto-decrypt-capsule" class="btn primary">
-                    <i class="fas fa-unlock"></i> Extract Files
-                </button>
-                <div id="decrypted-files" class="hidden"></div>
-            `;
-
-            document.getElementById('auto-decrypt-capsule').addEventListener('click', async () => {
-                try {
-                    const password = currentCapsuleData.password;
-                    const metadata = await decryptMetadata(password);
-                    await decryptFiles(metadata.filesList, password);
-                } catch (error) {
-                    alert("Error decrypting capsule: " + error.message);
-                }
-            });
-        }
-    }
-
-    function startOpenCountdown(targetDate) {
-        updateOpenCountdown(targetDate);
-        const interval = setInterval(() => {
-            if (updateOpenCountdown(targetDate)) {
-                clearInterval(interval);
-            }
-        }, 1000);
-    }
-
-    function updateOpenCountdown(targetDate) {
-        const now = new Date();
-        const diff = targetDate - now;
-
-        if (diff <= 0) {
-            handleUnlockStatus(targetDate);
-            return true;
-        }
-
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-        openLocked.querySelector('#days').textContent = days.toString().padStart(2, '0');
-        openLocked.querySelector('#hours').textContent = hours.toString().padStart(2, '0');
-        openLocked.querySelector('#minutes').textContent = minutes.toString().padStart(2, '0');
-        openLocked.querySelector('#seconds').textContent = seconds.toString().padStart(2, '0');
-        return false;
     }
 
     async function decryptMetadata(password) {
@@ -349,11 +427,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const encryptedContent = await encryptedFile.async('string');
             const decrypted = CryptoJS.AES.decrypt(encryptedContent, password);
 
-            // Convert decrypted content to appropriate format for JSZip
-            const decryptedContent = decrypted.toString(CryptoJS.enc.Latin1);
-            decryptedZip.file(fileInfo.name, decryptedContent, {
-                binary: true
-            });
+            // Convert decrypted content to Uint8Array for proper binary handling
+            const wordArray = decrypted.toString(CryptoJS.enc.Base64);
+            const binaryString = atob(wordArray);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+
+            // Add to zip and create blob for individual download
+            decryptedZip.file(fileInfo.name, bytes);
         }
 
         // Generate the decrypted zip and provide download link
@@ -374,28 +457,29 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         decryptedFilesDiv.appendChild(fileDiv);
 
-        // Also add individual file download links
+        // Add individual file download links
         const individualFilesDiv = document.createElement('div');
         individualFilesDiv.className = 'individual-files';
 
-        for (const fileInfo of filesList) {
-            const encryptedFile = currentZip.file(`${fileInfo.name}.encrypted`);
-            if (!encryptedFile) continue;
+        // Get all files from the decrypted zip
+        const files = Object.keys(decryptedZip.files).filter(name => !decryptedZip.files[name].dir);
 
-            const encryptedContent = await encryptedFile.async('string');
-            const decrypted = CryptoJS.AES.decrypt(encryptedContent, password);
-            const blob = new Blob([decrypted.toString(CryptoJS.enc.Latin1)], {
-                type: fileInfo.type
-            });
+        for (const fileName of files) {
+            const fileBlob = await decryptedZip.file(fileName).async('blob');
 
             const fileElement = document.createElement('div');
             fileElement.className = 'decrypted-file';
+
+            // Find the matching file info from our list
+            const fileInfo = filesList.find(f => f.name === fileName);
+            const fileSize = fileInfo ? formatFileSize(fileInfo.size) : '';
+
             fileElement.innerHTML = `
-                ${fileInfo.name} (${formatFileSize(fileInfo.size)})
+                ${fileName} ${fileSize ? `(${fileSize})` : ''}
                 <a class="btn secondary download-decrypted"
-                   href="${URL.createObjectURL(blob)}"
-                   download="${fileInfo.name}">
-                    <i class="fas fa-download"></i> Download (Broken)
+                   href="${URL.createObjectURL(fileBlob)}"
+                   download="${fileName}">
+                    <i class="fas fa-download"></i> Download
                 </a>
             `;
             individualFilesDiv.appendChild(fileElement);
@@ -409,4 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.switchTab = (tabName) => {
         document.querySelector(`.tab-btn[data-tab="${tabName}"]`).click();
     };
+
+    // Add reset buttons to the UI
+    addResetButtons();
 });
