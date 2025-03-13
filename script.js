@@ -190,9 +190,9 @@ document.addEventListener('DOMContentLoaded', () => {
         lockedMessage.classList.add('hidden');
         unlockedMessage.innerHTML = `
             <h3>Capsule Ready!</h3>
-            <p>Switch to the <b>Open Capsule</b> tab to unlock</p>
+            <p>To open your capsule, please upload it in the Open Capsule tab.</p>
             <button class="btn primary" onclick="switchTab('open')">
-                Open Capsule
+                Go to Open Capsule Tab
             </button>
         `;
         unlockedMessage.classList.remove('hidden');
@@ -232,9 +232,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const openStatus = document.getElementById('open-status');
     const openLocked = document.getElementById('open-locked');
     const openUnlocked = document.getElementById('open-unlocked');
-    const decryptBtn = document.getElementById('decrypt-capsule');
-    const openPasswordInput = document.getElementById('open-password');
-    const decryptedFilesDiv = document.getElementById('decrypted-files');
     let currentZip = null;
     let currentCapsuleData = null;
 
@@ -250,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             currentZip = await JSZip.loadAsync(file);
-            handleUnlockStatus(new Date(currentCapsuleData.unlockDate));
+            handleUnlockStatus(new Date(currentCapsuleData.unlockDate), capsuleId);
             switchTab('open');
         } catch (error) {
             alert('Invalid capsule file.');
@@ -262,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return match ? match[1] : null;
     }
 
-    function handleUnlockStatus(unlockDate) {
+    function handleUnlockStatus(unlockDate, capsuleId) {
         const now = new Date();
         openStatus.classList.remove('hidden');
 
@@ -273,6 +270,25 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             openLocked.classList.add('hidden');
             openUnlocked.classList.remove('hidden');
+
+            openUnlocked.innerHTML = `
+                <h3>Capsule Ready to Open!</h3>
+                <p>Your capsule is now ready to be decrypted. Click the button below to access your files.</p>
+                <button id="auto-decrypt-capsule" class="btn primary">
+                    <i class="fas fa-unlock"></i> Extract Files
+                </button>
+                <div id="decrypted-files" class="hidden"></div>
+            `;
+
+            document.getElementById('auto-decrypt-capsule').addEventListener('click', async () => {
+                try {
+                    const password = currentCapsuleData.password;
+                    const metadata = await decryptMetadata(password);
+                    await decryptFiles(metadata.filesList, password);
+                } catch (error) {
+                    alert("Error decrypting capsule: " + error.message);
+                }
+            });
         }
     }
 
@@ -306,19 +322,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return false;
     }
 
-    decryptBtn.addEventListener('click', async () => {
-        const password = openPasswordInput.value;
-        if (!/^\d{12}$/.test(password)) return alert('Invalid password format.');
-
-        try {
-            const metadata = await decryptMetadata(password);
-            await decryptFiles(metadata.filesList, password);
-            decryptedFilesDiv.classList.remove('hidden');
-        } catch (error) {
-            alert(error.message);
-        }
-    });
-
     async function decryptMetadata(password) {
         const encryptedMetadata = await currentZip.file('metadata.json.encrypted').async('string');
         const decrypted = CryptoJS.AES.decrypt(encryptedMetadata, password);
@@ -330,7 +333,50 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function decryptFiles(filesList, password) {
+        const decryptedFilesDiv = document.getElementById('decrypted-files');
+        if (!decryptedFilesDiv) {
+            alert('Decryption container not found');
+            return;
+        }
+
         decryptedFilesDiv.innerHTML = '';
+        const decryptedZip = new JSZip();
+
+        for (const fileInfo of filesList) {
+            const encryptedFile = currentZip.file(`${fileInfo.name}.encrypted`);
+            if (!encryptedFile) continue;
+
+            const encryptedContent = await encryptedFile.async('string');
+            const decrypted = CryptoJS.AES.decrypt(encryptedContent, password);
+
+            // Convert decrypted content to appropriate format for JSZip
+            const decryptedContent = decrypted.toString(CryptoJS.enc.Latin1);
+            decryptedZip.file(fileInfo.name, decryptedContent, {
+                binary: true
+            });
+        }
+
+        // Generate the decrypted zip and provide download link
+        const decryptedBlob = await decryptedZip.generateAsync({
+            type: 'blob'
+        });
+
+        const fileDiv = document.createElement('div');
+        fileDiv.className = 'decrypted-files-container';
+        fileDiv.innerHTML = `
+            <h3>Your files have been successfully decrypted!</h3>
+            <a class="btn primary download-all"
+               href="${URL.createObjectURL(decryptedBlob)}"
+               download="decrypted_files.zip">
+                <i class="fas fa-download"></i> Download All Files
+            </a>
+            <p class="hint">You can also download individual files below:</p>
+        `;
+        decryptedFilesDiv.appendChild(fileDiv);
+
+        // Also add individual file download links
+        const individualFilesDiv = document.createElement('div');
+        individualFilesDiv.className = 'individual-files';
 
         for (const fileInfo of filesList) {
             const encryptedFile = currentZip.file(`${fileInfo.name}.encrypted`);
@@ -342,18 +388,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 type: fileInfo.type
             });
 
-            const fileDiv = document.createElement('div');
-            fileDiv.className = 'decrypted-file';
-            fileDiv.innerHTML = `
+            const fileElement = document.createElement('div');
+            fileElement.className = 'decrypted-file';
+            fileElement.innerHTML = `
                 ${fileInfo.name} (${formatFileSize(fileInfo.size)})
                 <a class="btn secondary download-decrypted"
                    href="${URL.createObjectURL(blob)}"
                    download="${fileInfo.name}">
-                    <i class="fas fa-download"></i> Download
+                    <i class="fas fa-download"></i> Download (Broken)
                 </a>
             `;
-            decryptedFilesDiv.appendChild(fileDiv);
+            individualFilesDiv.appendChild(fileElement);
         }
+
+        decryptedFilesDiv.appendChild(individualFilesDiv);
+        decryptedFilesDiv.classList.remove('hidden');
     }
 
     // Utility function
