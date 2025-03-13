@@ -27,12 +27,18 @@ body {
   color: var(--text-color);
   background-color: #f0f2f5;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .container {
   max-width: 900px;
-  margin: 0 auto;
+  margin: auto;
   padding: 2rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 header {
@@ -451,9 +457,9 @@ label[for="capsule-upload"]:hover {
 footer {
   text-align: center;
   color: #6c757d;
-  margin-top: 2.5rem;
+  margin-top: auto;
+  width: 100%;
   padding: 1.5rem 0;
-  border-top: 1px solid #dee2e6;
 }
 
 footer a {
