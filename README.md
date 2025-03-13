@@ -1,6 +1,6 @@
 <div align="center">
 
-[# ChronoVault](https://thatsinewave.github.io/ChronoVault) 
+# [ChronoVault](https://thatsinewave.github.io/ChronoVault) 
 
 ChronoVault is a **digital time capsule** web application that allows users to securely store files that can only be accessed at a predetermined future date. The files are sealed with encryption and require a **12-digit password** to unlock when the time comes.
 
