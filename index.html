@@ -103,35 +103,41 @@
           </div>
         </div>
         <div class="tab-content" id="open-tab">
-        <div class="open-container">
-          <div class="form-group">
-            <label for="capsule-upload">
-              <i class="fas fa-file-archive"></i> Upload Capsule
-            </label>
-            <input type="file" id="capsule-upload" accept=".zip">
-            <p class="hint">Or enter capsule ID manually below</p>
-            <input type="text" id="manual-capsule-id" placeholder="Enter capsule ID if not in filename">
-          </div>
-          <div id="open-status" class="result-container hidden">
-            <div id="open-locked" class="hidden">
-              <h3>Capsule is Still Locked</h3>
-              <p>Time remaining until unlock:</p>
-              <div class="countdown">
-                <!-- Same countdown structure as check tab -->
-              </div>
+          <div class="open-container">
+            <div class="form-group">
+              <label for="capsule-upload">
+                <i class="fas fa-file-archive"></i> Upload Capsule
+              </label>
+              <input type="file" id="capsule-upload" accept=".zip">
+              <p class="hint">Or enter capsule ID manually below</p>
+              <input type="text" id="manual-capsule-id" placeholder="Enter capsule ID if not in filename">
             </div>
-            <div id="open-unlocked" class="hidden">
-              <h3>Capsule Ready to Open!</h3>
-              <div class="form-group">
-                <input type="text" id="open-password"
-                       placeholder="Enter 12-digit password"
-                       maxlength="12"
-                       pattern="[0-9]{12}">
-                <button id="decrypt-capsule" class="btn primary">
-                  <i class="fas fa-unlock"></i> Decrypt Files
-                </button>
+            <div id="open-status" class="result-container hidden">
+              <div id="open-locked" class="hidden">
+                <h3>Capsule is Still Locked</h3>
+                <p>Time remaining until unlock:</p>
+                <div class="countdown">
+                  <div class="countdown-item">
+                    <span id="days">00</span>
+                    <span class="label">Days</span>
+                  </div>
+                  <div class="countdown-item">
+                    <span id="hours">00</span>
+                    <span class="label">Hours</span>
+                  </div>
+                  <div class="countdown-item">
+                    <span id="minutes">00</span>
+                    <span class="label">Minutes</span>
+                  </div>
+                  <div class="countdown-item">
+                    <span id="seconds">00</span>
+                    <span class="label">Seconds</span>
+                  </div>
+                </div>
               </div>
-              <div id="decrypted-files" class="hidden"></div>
+              <div id="open-unlocked" class="hidden">
+                <!-- This content will be dynamically generated in JavaScript -->
+              </div>
             </div>
           </div>
         </div>
@@ -141,7 +147,6 @@
         <p>&copy; 2025 ChronoVault | <a href="https://github.com/ThatSINEWAVE/ChronoVault" target="_blank">GitHub</a></p>
         <p>Project made by <a href="https://github.com/ThatSINEWAVE/ChronoVault" target="_blank">ThatSINEWAVE</a></p>
       </footer>
-    </div>
     <script src="script.js"></script>
   </body>
 </html>
