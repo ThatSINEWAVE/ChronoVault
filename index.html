@@ -25,8 +25,7 @@
       <div class="tab-container">
         <div class="tabs">
           <button class="tab-btn active" data-tab="create">Create Capsule</button>
-          <button class="tab-btn" data-tab="check">Check Capsule</button>
-          <button class="tab-btn" data-tab="open">Open Capsule</button>
+          <button class="tab-btn" data-tab="access">Access Capsule</button>
         </div>
         <div class="tab-content active" id="create-tab">
           <div class="create-container">
@@ -43,7 +42,7 @@
             <div class="form-group">
               <label for="password">Set 12-Digit Password</label>
               <input type="text" id="password" placeholder="Enter a 12-digit password" maxlength="12" pattern="[0-9]{12}">
-              <p class="hint">This password will be required to open your capsule when the time comes</p>
+              <p class="hint">This password will be used for the hash of your Time Capsule</p>
             </div>
             <button id="create-capsule" class="btn primary">
               <i class="fas fa-lock"></i> Seal Time Capsule </button>
@@ -57,15 +56,20 @@
             </div>
           </div>
         </div>
-        <div class="tab-content" id="check-tab">
-          <div class="check-container">
+        <div class="tab-content" id="access-tab">
+          <div class="access-container">
             <div class="form-group">
-              <label for="check-id">Enter Capsule ID</label>
-              <input type="text" id="check-id" placeholder="Enter your capsule ID">
+              <label for="capsule-upload">
+                <i class="fas fa-file-archive"></i> Upload Capsule
+              </label>
+              <input type="file" id="capsule-upload" accept=".zip">
+              <p class="hint">Or enter capsule ID manually:</p>
+              <input type="text" id="capsule-id-input" placeholder="Enter your capsule ID">
             </div>
             <button id="check-capsule" class="btn primary">
-              <i class="fas fa-hourglass-half"></i> Check Status </button>
-            <div id="check-result" class="result-container hidden">
+              <i class="fas fa-hourglass-half"></i> Check Capsule
+            </button>
+            <div id="access-status" class="result-container hidden">
               <div id="locked-message">
                 <h3>Your Capsule is Locked</h3>
                 <p>Time remaining until your capsule unlocks:</p>
@@ -87,66 +91,30 @@
                     <span class="label">Seconds</span>
                   </div>
                 </div>
-                <p>Unlock Date: <span id="unlock-date-display"></span>
-                </p>
+                <p>Unlock Date: <span id="unlock-date-display"></span></p>
               </div>
-              <div id="unlocked-message" class="hidden">
-                <h3>Your Capsule is Ready to Open!</h3>
-                <p>Enter your 12-digit password to access your capsule:</p>
-                <div class="form-group">
-                  <input type="text" id="unlock-password" placeholder="Enter your 12-digit password" maxlength="12" pattern="[0-9]{12}">
-                  <button id="unlock-capsule" class="btn secondary">
-                    <i class="fas fa-unlock"></i> Unlock Capsule </button>
+              <div id="unlocked-interface" class="hidden">
+                <div id="decryption-ui">
+                  <h3>Capsule Ready to Open!</h3>
+                  <div class="form-group">
+                    <label for="unlock-password">Enter 12-Digit Password</label>
+                    <input type="text" id="unlock-password" placeholder="Enter your 12-digit password" maxlength="12" pattern="[0-9]{12}">
+                  </div>
+                  <button id="decrypt-capsule" class="btn primary">
+                    <i class="fas fa-unlock"></i> Decrypt Files
+                  </button>
                 </div>
+                <div id="decrypted-files" class="hidden"></div>
               </div>
             </div>
           </div>
         </div>
-        <div class="tab-content" id="open-tab">
-          <div class="open-container">
-            <div class="form-group">
-              <label for="capsule-upload">
-                <i class="fas fa-file-archive"></i> Upload Capsule
-              </label>
-              <input type="file" id="capsule-upload" accept=".zip">
-              <p class="hint">Or enter capsule ID manually below</p>
-              <input type="text" id="manual-capsule-id" placeholder="Enter capsule ID if not in filename">
-            </div>
-            <div id="open-status" class="result-container hidden">
-              <div id="open-locked" class="hidden">
-                <h3>Capsule is Still Locked</h3>
-                <p>Time remaining until unlock:</p>
-                <div class="countdown">
-                  <div class="countdown-item">
-                    <span id="days">00</span>
-                    <span class="label">Days</span>
-                  </div>
-                  <div class="countdown-item">
-                    <span id="hours">00</span>
-                    <span class="label">Hours</span>
-                  </div>
-                  <div class="countdown-item">
-                    <span id="minutes">00</span>
-                    <span class="label">Minutes</span>
-                  </div>
-                  <div class="countdown-item">
-                    <span id="seconds">00</span>
-                    <span class="label">Seconds</span>
-                  </div>
-                </div>
-              </div>
-              <div id="open-unlocked" class="hidden">
-                <!-- This content will be dynamically generated in JavaScript -->
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
       </div>
       <footer>
         <p>&copy; 2025 ChronoVault | <a href="https://github.com/ThatSINEWAVE/ChronoVault" target="_blank">GitHub</a></p>
         <p>Project made by <a href="https://github.com/ThatSINEWAVE" target="_blank">ThatSINEWAVE</a></p>
       </footer>
+    </div>
     <script src="script.js"></script>
   </body>
 </html>
